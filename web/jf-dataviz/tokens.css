@@ -1,0 +1,32 @@
+/* Josep Ferrer Dataviz tokens, generated from tokens.json. Light only. */
+:root {
+  --page: #f5efe3;
+  --card: #ebe3d4;
+  --raised: #ffffff;
+  --rule: #dfd5c3;
+  --grid: #dad0bf;
+  --ink: #1f2433;
+  --ink-2: #4b5060;
+  --muted: #5e6170;
+  --blue: #2e5a93;
+  --apricot: #b36f1e;
+  --mauve: #954a7c;
+  --sage: #3a8758;
+  --context: #a8a196;
+  --context-light: #cfc5b3;
+  --font-sans: "Gabarito", "Trebuchet MS", Arial, sans-serif;
+  --font-hand: "Shantell Sans", "Comic Neue", "Segoe Print", cursive;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 34px;
+  --space-7: 40px;
+  --space-8: 56px;
+  --radius-mark: 3px;
+  --radius-chip: 6px;
+  --radius-tip: 8px;
+  --radius-card: 18px;
+  color-scheme: light;
+}

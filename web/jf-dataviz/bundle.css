@@ -1,0 +1,48 @@
+/* Josep Ferrer Dataviz: component styles. Load after tokens.css. */
+
+.jf-page { background: var(--page); color: var(--ink); font-family: var(--font-sans); font-size: 15px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+
+/* Masthead */
+.jf-mast { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-block: 14px; border-bottom: 1px solid var(--ink); }
+.jf-mast .jf-proj { font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.jf-mast .jf-by { font-size: 14px; color: var(--ink-2); }
+.jf-mast .jf-by b { color: var(--ink); font-weight: 500; }
+
+/* Chapters: numbered squares for a real sequence */
+.jf-chapters { display: flex; flex-wrap: wrap; gap: 6px; }
+.jf-chapters a { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1.5px solid var(--ink); border-radius: var(--radius-chip); color: var(--ink); text-decoration: none; font-family: var(--font-sans); font-size: 12px; font-weight: 600; }
+.jf-chapters a:hover, .jf-chapters a[aria-current="step"] { background: var(--ink); color: var(--page); }
+.jf-chapters a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* Chart card */
+.jf-card { background: var(--card); border-radius: var(--radius-card); padding: clamp(18px, 3.4vw, 34px); color: var(--ink); font-family: var(--font-sans); min-width: 0; max-width: 780px; }
+.jf-card .jf-headline { margin: 0 0 8px; font-size: clamp(22px, 2.6vw, 28px); line-height: 1.12; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; max-width: 24ch; }
+.jf-card .jf-dek { margin: 0 0 24px; font-size: 17px; line-height: 1.45; color: var(--ink-2); max-width: 56ch; }
+.jf-card .jf-hero { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; }
+.jf-card .jf-big { font-weight: 900; font-size: clamp(64px, 10vw, 96px); line-height: .85; letter-spacing: -.03em; }
+.jf-card .jf-big small { font-size: .4em; font-weight: 700; letter-spacing: 0; margin-left: 2px; }
+.jf-card .jf-cap { font-size: 15px; color: var(--ink-2); max-width: 22ch; padding-bottom: 4px; }
+.jf-card .jf-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 14px; }
+.jf-card .jf-src { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); max-width: 60ch; }
+.jf-card .jf-sig { font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+
+/* Chart internals */
+.jf-viz { width: 100%; position: relative; }
+.jf-viz svg { display: block; overflow: visible; }
+.jf-viz text { font-family: var(--font-sans); font-size: 13px; fill: var(--ink-2); }
+.jf-viz text.jf-lab { fill: var(--ink); }
+.jf-viz text.jf-hi { fill: var(--ink); font-weight: 700; }
+.jf-viz text.jf-head { fill: var(--ink); font-weight: 500; }
+.jf-viz .jf-base { stroke: var(--ink); stroke-width: 1; }
+.jf-viz .jf-gridline { stroke: var(--grid); stroke-width: 1; }
+.jf-viz .jf-hit { fill: transparent; }
+
+/* Annotation: handwritten note plus curved arrow */
+.jf-arrow { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.jf-note, .jf-viz text.jf-note { font-family: var(--font-hand); font-variation-settings: "INFM" 60; font-size: 15px; font-weight: 500; fill: var(--ink); }
+
+/* Tooltip */
+.jf-tip { position: fixed; z-index: 20; pointer-events: none; background: var(--raised); color: var(--ink); border: 1.5px solid var(--ink); border-radius: var(--radius-tip); padding: 8px 11px; font-family: var(--font-sans); font-size: 13px; line-height: 1.4; box-shadow: 0 2px 8px rgba(31, 36, 51, .12); max-width: 240px; }
+.jf-tip b { font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .jf-card *, .jf-viz * { transition: none !important; animation: none !important; } }

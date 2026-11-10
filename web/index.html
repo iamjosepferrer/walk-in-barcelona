@@ -1,0 +1,556 @@
+<title>Walk in Barcelona</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Pick any two places in Barcelona and see how the streets change along the shortest walk between them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400..900&family=Shantell+Sans:wght,INFM@300..800,0..100&display=swap">
+<link rel="stylesheet" href="jf-dataviz/tokens.css">
+<link rel="stylesheet" href="jf-dataviz/bundle.css">
+<style>
+/* Walk in Barcelona, in the Josep Ferrer Dataviz style. Light only.
+   Exception to the style: the ribbons keep one colour per street condition. */
+:root {
+  --i-slope: #5b6662; --i-crossings: #2a78d6; --i-park: #008300; --i-trees: #1baf7a; --i-air: #4a3aa7;
+  --i-thermal: #eb6834; --i-attractiveness: #e87ba4; --i-low_traffic: #eda100; --i-pedestrian: #e34948;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.wrap { max-width: 1400px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (min-width: 720px) { .wrap { padding-left: max(32px, env(safe-area-inset-left, 0px)); padding-right: max(32px, env(safe-area-inset-right, 0px)); } }
+
+.intro { padding-block: var(--space-8) var(--space-6); }
+.intro h1 { margin: 0; font-size: clamp(34px, 5vw, 48px); line-height: 1.02; font-weight: 800; letter-spacing: -0.02em; max-width: 20ch; text-wrap: balance; }
+.intro p { margin: 14px 0 0; font-size: 18px; line-height: 1.5; color: var(--ink-2); max-width: 62ch; text-wrap: pretty; }
+
+/* trip: from and to */
+.trip { display: grid; gap: 14px; padding-bottom: var(--space-6); }
+.places { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: end; max-width: 860px; }
+.field { display: grid; gap: 5px; min-width: 0; position: relative; }
+.field label { font-size: 13px; font-weight: 700; }
+.field input { width: 100%; height: 44px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: var(--radius-chip); background: transparent; font-size: 16px; }
+.field input::placeholder { color: var(--muted); }
+.swap { height: 44px; padding: 0 12px; border: 1.5px solid var(--ink); border-radius: var(--radius-chip); background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; }
+.swap:hover { background: var(--ink); color: var(--page); }
+.list { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--raised); border: 1.5px solid var(--ink); border-radius: var(--radius-tip); max-height: 320px; overflow-y: auto; }
+.list li { padding: 7px 9px; border-radius: 4px; cursor: pointer; font-size: 15px; display: flex; justify-content: space-between; gap: 12px; }
+.list li small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.list li[aria-selected="true"], .list li:hover { background: var(--card); }
+.list .none { color: var(--muted); cursor: default; }
+.tries { font-size: 14px; color: var(--ink-2); }
+.tries button { border: 0; background: none; padding: 0; color: var(--blue); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; font-size: 14px; }
+
+/* the two cards */
+.main { display: grid; gap: 24px; align-items: start; }
+@media (min-width: 1100px) { .main { grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); } }
+.main .jf-card { max-width: none; }
+.jf-card .jf-headline { max-width: 28ch; min-height: 2.24em; }
+.jf-card .jf-dek { margin-bottom: 18px; }
+.mapbox { position: relative; height: clamp(340px, 56vh, 600px); margin-inline: calc(-1 * clamp(18px, 3.4vw, 34px)); }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+#anno { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#anno .jf-note { paint-order: stroke; stroke: var(--card); stroke-width: 5px; stroke-linejoin: round; }
+.tools { position: absolute; right: clamp(18px, 3.4vw, 34px); top: 4px; display: grid; gap: 4px; }
+.tools button { width: 32px; height: 32px; border: 1.5px solid var(--ink); border-radius: var(--radius-chip); background: var(--card); cursor: pointer; font-size: 17px; line-height: 1; }
+.tools button.fit { font-size: 11px; font-weight: 700; }
+.tools button:hover { background: var(--ink); color: var(--page); }
+.busy { position: absolute; left: clamp(18px, 3.4vw, 34px); top: 8px; font-size: 13px; color: var(--ink-2); }
+.maphint { margin: 10px 0 0; font-size: 13px; color: var(--ink-2); }
+#rib { display: block; width: 100%; overflow: visible; }
+#rib text { font-family: var(--font-sans); font-size: 13px; fill: var(--ink-2); }
+#rib text.hi { fill: var(--ink); font-weight: 700; }
+#rib text.tick { font-size: 12px; }
+
+/* end matter */
+details { margin-top: var(--space-7); border-top: 1px solid var(--rule); padding-top: 14px; max-width: 780px; }
+summary { cursor: pointer; font-weight: 700; font-size: 16px; }
+details p { font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+details a, .foot a { color: var(--blue); }
+.foot { margin: 28px 0 40px; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 640px) {
+  .places { grid-template-columns: minmax(0, 1fr); }
+  .swap { justify-self: start; height: 34px; }
+}
+</style>
+
+<div class="jf-page"><div class="wrap">
+  <header class="jf-mast"><span class="jf-proj">Walk in Barcelona</span><span class="jf-by">by <b>Josep Ferrer</b></span></header>
+
+  <section class="intro">
+    <h1>See what any walk in Barcelona is like, street by street</h1>
+    <p>Pick two places in the city. The page finds the shortest way on foot and shows how trees, air, traffic, slope and five more conditions change along it, using only the city's open data.</p>
+  </section>
+
+  <section class="trip" aria-label="Your trip">
+    <div class="places">
+      <div class="field">
+        <label for="qA">From</label>
+        <input id="qA" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lA" autocomplete="off" spellcheck="false" placeholder="A place, neighbourhood or corner">
+        <ul class="list" id="lA" role="listbox" hidden></ul>
+      </div>
+      <button type="button" class="swap" id="swap" aria-label="Swap start and end">Swap</button>
+      <div class="field">
+        <label for="qB">To</label>
+        <input id="qB" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="lB" autocomplete="off" spellcheck="false" placeholder="Try Sagrada Família or Aragó / Pg. Gràcia">
+        <ul class="list" id="lB" role="listbox" hidden></ul>
+      </div>
+    </div>
+    <div class="tries" id="tries"></div>
+  </section>
+
+  <div class="main">
+    <article class="jf-card" aria-labelledby="mapHead">
+      <h2 class="jf-headline" id="mapHead">Pick two places to see the walk between them</h2>
+      <p class="jf-dek" id="mapDek">The shortest way on the city's street network. Click the map to set the start, then the end.</p>
+      <div class="mapbox">
+        <canvas id="map" aria-label="Map of Barcelona with the walk"></canvas>
+        <svg id="anno" aria-hidden="true"></svg>
+        <div class="tools">
+          <button type="button" id="zin" aria-label="Zoom in">+</button>
+          <button type="button" id="zout" aria-label="Zoom out">&minus;</button>
+          <button type="button" id="zfit" class="fit" aria-label="Fit the walk">Fit</button>
+        </div>
+        <div class="busy" id="busy" hidden>Finding the way</div>
+      </div>
+      <p class="maphint">Drag to move, scroll or pinch to zoom. A click on the map starts a new trip.</p>
+      <div class="jf-foot"><p class="jf-src">Source: Open Data BCN street sections and parks, ICGC terrain model 2 m. Route computed in your browser.</p></div>
+    </article>
+
+    <article class="jf-card" aria-labelledby="ribHead">
+      <h2 class="jf-headline" id="ribHead">What the streets are like along the way</h2>
+      <p class="jf-dek" id="ribDek">Street conditions along the walk. A typical Barcelona street fills half of each band, wider is better.</p>
+      <div class="jf-viz"><svg id="rib" role="img" aria-label="Street conditions along the walk"></svg></div>
+      <div class="jf-foot"><p class="jf-src">Source: Open Data BCN (tree inventory, NO&#8322; map 2024, noise map 2017, crossings, ground-floor premises 2024, terraces 2026, climate shelters, fountains), ICGC terrain model 2 m.</p></div>
+    </article>
+  </div>
+
+  <details>
+    <summary>How this was made</summary>
+    <p>The street conditions follow the walkability indicators of Transform Transport's <a href="https://transformtransport.org/research/inclusive-mobility/ux-mobility-multi-user-walkability-route-planner/" target="_blank" rel="noopener">UX Mobility</a> study (Milan, 2025), built on the Walk21 framework. Every one of the city's 14,816 street sections gets a value for nine conditions, ranked against all the others: a typical Barcelona street sits in the middle, the best ones at the top.</p>
+    <p>The way shown is the shortest one on the city's street network, so it can include stairs. Walking time assumes 4.8 km an hour. Three conditions are proxies: shade and water (tree canopy, climate shelters and fountains), low traffic (the 2017 road noise map, checked against 246 traffic counts) and pedestrian streets (plazas and sections without traffic noise).</p>
+    <p>Data: Open Data BCN street sections, 2017 noise map, 2024 NO&#8322; map, crossings, Biodiversity Atlas trees, park trees, climate shelters, drinking fountains, ground-floor premises (2024) and terraces (2026), all CC BY 4.0. Elevation from the ICGC terrain model 2 m, CC BY 4.0. Street corners in the search boxes come from the street section names.</p>
+  </details>
+  <p class="foot">A <a href="https://projects.databites.tech" target="_blank" rel="noopener">databites</a> project. Open data, no survey.</p>
+</div></div>
+
+<script src="data.js"></script>
+<script src="places.js"></script>
+<script src="jf-dataviz/bundle.js"></script>
+<script>
+(() => {
+"use strict";
+const D = window.PAS_DATA, PL = window.PAS_PLACES;
+const $ = id => document.getElementById(id);
+if (!D || !PL) { $("mapDek").textContent = "The map data did not load (data.js or places.js missing)."; return; }
+
+/* ---------- decode ---------- */
+const dec = (s, T) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new T(u.buffer); };
+const NX = dec(D.nx, Int32Array), NY = dec(D.ny, Int32Array);
+const EU = dec(D.eu, Int32Array), EV = dec(D.ev, Int32Array), ELEN = dec(D.elen, Int32Array);
+const EX = dec(D.ex, Int8Array), ERAW = dec(D.eraw, Float32Array), EFLAG = dec(D.eflag, Uint8Array);
+const GXY = dec(D.gxy, Int32Array), GOFF = dec(D.goff, Int32Array), ZS = dec(D.zs, Int16Array), ZOFF = dec(D.zoff, Int32Array);
+const NB = dec(D.nbarri, Uint8Array), ESTR = dec(PL.edge_street, Int16Array), STREETS = PL.streets;
+const N = D.n_nodes, E = D.n_edges, IND = D.indicators, K = IND.length;
+const LEN = new Float32Array(E); for (let i = 0; i < E; i++) LEN[i] = ELEN[i] / 10;
+const fmt = JF.fmt;
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const barri = n => cap(D.barris[NB[n]]);
+const street = e => ESTR[e] >= 0 ? STREETS[ESTR[e]] : null;
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+const LABEL = { slope: "Slope", crossings: "Crossings", park: "Park", trees: "Trees", air: "Air quality", thermal: "Shade and water",
+  attractiveness: "Shops and terraces", low_traffic: "Low traffic", pedestrian: "Pedestrian" };
+const SHORT = { slope: "Slope", crossings: "Crossings", park: "Park", trees: "Trees", air: "Air", thermal: "Shade",
+  attractiveness: "Shops", low_traffic: "Quiet", pedestrian: "Pedestrian" };
+/* what a stretch that beats the typical street has, for the headline */
+const BETTER = { slope: "is flatter than a typical Barcelona street", crossings: "has crossings closer together than a typical street",
+  park: "runs through or along a park", trees: "has more trees than a typical Barcelona street", air: "has cleaner air than a typical Barcelona street",
+  thermal: "has more shade and water than a typical street", attractiveness: "has more shops and terraces than a typical street",
+  low_traffic: "has less traffic than a typical Barcelona street", pedestrian: "is pedestrian street or plaza" };
+const VALUE = {
+  slope: v => `Slope ${fmt.num(v, 1)}%`, crossings: v => `Crossing every ${fmt.int(v)} m`, park: v => `Park ${fmt.int(v)}% of the street`,
+  trees: v => `Trees ${fmt.int(v)} per 100 m`, air: v => `NO₂ ${fmt.int(v)} µg/m³`, thermal: v => `Shade and water index ${v >= 0 ? "+" : ""}${fmt.num(v, 2)}`,
+  attractiveness: v => `Shops and terraces ${fmt.num(v, 1)} per 100 m`, low_traffic: v => `Traffic noise ${fmt.int(v)} dB`, pedestrian: v => `Pedestrian: ${v >= 1 ? "yes" : "no"}` };
+/* and what a stretch worse than the typical street has, for the weak spot in the dek */
+const WORSE = { slope: "steeper streets than typical", crossings: "crossings further apart than typical", trees: "fewer trees than typical",
+  air: "worse air than typical", thermal: "less shade and water than typical", attractiveness: "fewer shops and terraces than typical", low_traffic: "more traffic than typical" };
+/* conditions ranked against the city, so "better than a typical street" means above the median.
+   Some come in bands (NO2 in 5 µg steps), so many streets sit exactly on the median: they count as typical, neither better nor worse. */
+const RANKED = ["slope", "crossings", "trees", "air", "thermal", "attractiveness", "low_traffic"];
+const bad = (e, ki) => { const q = EX[e * K + ki]; return q !== -128 && q < 0; };
+const good = (e, ki) => { const k = IND[ki]; if (k === "park") return ERAW[e * K + ki] > 0; if (k === "pedestrian") return ERAW[e * K + ki] >= 1; const q = EX[e * K + ki]; return q !== -128 && q > 0; };
+
+/* ---------- graph ---------- */
+const deg = new Int32Array(N + 1);
+for (let i = 0; i < E; i++) { deg[EU[i] + 1]++; deg[EV[i] + 1]++; }
+for (let i = 0; i < N; i++) deg[i + 1] += deg[i];
+const ADJN = new Int32Array(2 * E), ADJE = new Int32Array(2 * E), fill = deg.slice(0, N);
+for (let i = 0; i < E; i++) { const a = EU[i], b = EV[i]; ADJN[fill[a]] = b; ADJE[fill[a]++] = i; ADJN[fill[b]] = a; ADJE[fill[b]++] = i; }
+let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+for (let i = 0; i < N; i++) { minX = Math.min(minX, NX[i]); maxX = Math.max(maxX, NX[i]); minY = Math.min(minY, NY[i]); maxY = Math.max(maxY, NY[i]); }
+const CELL = 250, GW = Math.ceil((maxX - minX) / CELL) + 1, GH = Math.ceil((maxY - minY) / CELL) + 1;
+const grid = Array.from({ length: GW * GH }, () => []);
+for (let i = 0; i < N; i++) grid[Math.floor((NY[i] - minY) / CELL) * GW + Math.floor((NX[i] - minX) / CELL)].push(i);
+function nearestNode(x, y) {
+  const gx = Math.floor((x - minX) / CELL), gy = Math.floor((y - minY) / CELL); let best = -1, bd = Infinity;
+  for (let r = 0; r < 8; r++) { for (let j = gy - r; j <= gy + r; j++) for (let i = gx - r; i <= gx + r; i++) {
+      if (i < 0 || j < 0 || i >= GW || j >= GH) continue;
+      for (const n of grid[j * GW + i]) { const d = (NX[n] - x) ** 2 + (NY[n] - y) ** 2; if (d < bd) { bd = d; best = n; } } }
+    if (best >= 0 && r >= 1) break; }
+  return best;
+}
+
+/* ---------- shortest path (Dijkstra on length) ---------- */
+const dist = new Float64Array(N), prevE = new Int32Array(N), seen = new Int32Array(N); let stamp = 0;
+const hK = new Float64Array(4 * E + 8), hN = new Int32Array(4 * E + 8);
+function dijkstra(cost, s, t) {
+  stamp++; let hs = 0;
+  const push = (k, n) => { let i = hs++; while (i > 0) { const p = (i - 1) >> 1; if (hK[p] <= k) break; hK[i] = hK[p]; hN[i] = hN[p]; i = p; } hK[i] = k; hN[i] = n; };
+  const pop = () => { const n = hN[0], lk = hK[--hs], ln = hN[hs]; let i = 0;
+    for (;;) { let c = 2 * i + 1; if (c >= hs) break; if (c + 1 < hs && hK[c + 1] < hK[c]) c++; if (hK[c] >= lk) break; hK[i] = hK[c]; hN[i] = hN[c]; i = c; }
+    hK[i] = lk; hN[i] = ln; return n; };
+  seen[s] = stamp; dist[s] = 0; prevE[s] = -1; push(0, s);
+  while (hs) { const k = hK[0], a = pop(); if (a === t) break; if (k > dist[a]) continue;
+    for (let j = deg[a]; j < deg[a + 1]; j++) { const b = ADJN[j], e = ADJE[j], nd = k + cost[e];
+      if (seen[b] !== stamp || nd < dist[b]) { seen[b] = stamp; dist[b] = nd; prevE[b] = e; push(nd, b); } } }
+  if (seen[t] !== stamp) return null;
+  const path = []; let a = t; while (a !== s) { const e = prevE[a]; path.push(e); a = EU[e] === a ? EV[e] : EU[e]; }
+  return path.reverse();
+}
+
+/* ---------- route geometry ---------- */
+function routeGeom(path, s) {
+  const pts = [], zs = [], segs = []; let node = s, d0 = 0;
+  for (const e of path) {
+    const fwd = EU[e] === node, a = GOFF[e], b = GOFF[e + 1], L = LEN[e];
+    const idx = []; for (let i = a; i < b; i++) idx.push(i); if (!fwd) idx.reverse();
+    const zz = []; for (let i = ZOFF[e]; i < ZOFF[e + 1]; i++) zz.push(ZS[i] / 10); if (!fwd) zz.reverse();
+    zz.forEach((z, i) => zs.push([d0 + (zz.length > 1 ? i * L / (zz.length - 1) : 0), z]));
+    let acc = 0, px = null, py = null; const start = pts.length;
+    for (const i of idx) { const x = GXY[2 * i], y = GXY[2 * i + 1]; if (px !== null) acc += Math.hypot(x - px, y - py); pts.push([x, y, acc, e]); px = x; py = y; }
+    const span = acc || 1; for (let j = start; j < pts.length; j++) pts[j][2] = d0 + pts[j][2] * L / span;
+    segs.push({ e, d0, d1: d0 + L }); d0 += L; node = fwd ? EV[e] : EU[e];
+  }
+  return { pts, zs, segs, len: d0 };
+}
+function pointAt(g, d) { const p = g.pts; let lo = 0, hi = p.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p[m][2] < d) lo = m; else hi = m; }
+  const a = p[lo], b = p[hi], f = b[2] > a[2] ? (d - a[2]) / (b[2] - a[2]) : 0; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; }
+function zAt(g, d) { const z = g.zs; for (let i = 1; i < z.length; i++) if (z[i][0] >= d) { const [d0, z0] = z[i - 1], [d1, z1] = z[i]; return z0 + (z1 - z0) * (d1 > d0 ? (d - d0) / (d1 - d0) : 0); } return z[z.length - 1][1]; }
+const climbOf = g => { let c = 0; for (let i = 1; i < g.zs.length; i++) c += Math.max(0, g.zs[i][1] - g.zs[i - 1][1]); return c; };
+const stairsOf = g => g.segs.reduce((s, q) => s + (EFLAG[q.e] & 2 ? q.d1 - q.d0 : 0), 0);
+function steepest(g) {
+  let best = null;
+  for (const s of g.segs) { const L = s.d1 - s.d0; if (L < 20) continue;
+    const gr = (zAt(g, s.d1) - zAt(g, s.d0)) / L * 100; if (!best || Math.abs(gr) > Math.abs(best.grade)) best = { ...s, grade: gr }; }
+  return best;
+}
+
+/* ---------- places and search ---------- */
+const fold = s => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const norm = s => fold(s).replace(/[^a-z0-9]+/g, " ").trim();
+const EXPAND = [[/\bpg\b/g, "pg passeig"], [/\bpl\b/g, "pl placa plaza"], [/\bav\b/g, "av avinguda avenida"], [/\brbla\b/g, "rbla rambla"],
+  [/\bptge\b/g, "ptge passatge"], [/\btrav\b/g, "trav travessera"], [/\brda\b/g, "rda ronda"], [/\bctra\b/g, "ctra carretera"],
+  [/\bg v\b/g, "gv gran via"], [/\bpta\b/g, "pta placeta"]];
+const STOP = new Set(["de", "del", "dels", "la", "les", "el", "els", "l", "d", "i", "en", "na", "carrer", "calle", "c", "the", "and", "amb", "y", "with", "street", "st", "corner"]);
+const PLACES = PL.places.map(([label, node, kind]) => { let t = norm(label); for (const [re, r] of EXPAND) t = t.replace(re, r); return { label, node, kind, words: t.split(" ") }; });
+const KIND = ["Place", "Neighbourhood", "Corner"];
+const NODELABEL = new Map();
+for (const p of PLACES) { const had = NODELABEL.get(p.node); if (!had || p.kind < had.kind) NODELABEL.set(p.node, p); }
+function search(q) {
+  const toks = norm(q).split(" ").filter(t => t && !STOP.has(t));
+  if (!toks.length) return [];
+  const out = [];
+  for (const p of PLACES) {
+    let ok = true, exact = 0;
+    for (const t of toks) { let hit = false; for (const w of p.words) if (w.startsWith(t)) { hit = true; if (w === t) exact++; break; } if (!hit) { ok = false; break; } }
+    if (ok) out.push([p.kind * 10 - exact * 2 + (p.words[0].startsWith(toks[0]) ? 0 : 3) + p.label.length / 100, p]);
+  }
+  return out.sort((a, b) => a[0] - b[0]).slice(0, 8).map(x => x[1]);
+}
+const labelFor = n => { const p = NODELABEL.get(n); return p ? p.label : `A point in ${barri(n)}`; };
+
+/* ---------- state ---------- */
+const state = { s: null, t: null, sLab: "", tLab: "", hover: null };
+let route = null, G = null, token = 0, noWay = false;
+const busy = $("busy");
+async function compute() {
+  noWay = false;
+  if (state.s == null || state.t == null || state.s === state.t) { route = null; G = null; render(); return; }
+  const my = ++token; busy.hidden = false; await new Promise(r => setTimeout(r, 16));
+  const p = dijkstra(LEN, state.s, state.t); if (my !== token) return;
+  route = p; noWay = !p; G = p ? routeGeom(p, state.s) : null;
+  busy.hidden = true; writeHash(); render(); fit();
+}
+
+/* ---------- colours ---------- */
+let C = {};
+const probe = document.createElement("i"); probe.style.display = "none"; document.body.append(probe);
+const resolve = css => { probe.style.color = ""; probe.style.color = css; return getComputedStyle(probe).color; };
+function readColors() {
+  C = JF.colors();
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of IND) C["i-" + k] = cs.getPropertyValue("--i-" + k).trim();
+  C.parks = resolve("color-mix(in srgb, var(--sage) 22%, var(--card))") || "#cdd6be";
+  C.streets = resolve("color-mix(in srgb, var(--context-light) 75%, var(--card))") || C["context-light"];
+}
+
+/* ---------- map ---------- */
+const cv = $("map"), ctx = cv.getContext("2d"), anno = $("anno");
+const view = { k: 1, x: 0, y: 0 }; let W_ = 0, H_ = 0, DPR = 1;
+const sx = x => view.x + view.k * x, sy = y => view.y - view.k * y, wx = px => (px - view.x) / view.k, wy = py => (view.y - py) / view.k;
+function fitBox(x0, y0, x1, y1, pad) { const k = Math.min((W_ - 2 * pad) / Math.max(x1 - x0, 1), (H_ - 2 * pad) / Math.max(y1 - y0, 1));
+  view.k = k; view.x = W_ / 2 - k * (x0 + x1) / 2; view.y = H_ / 2 + k * (y0 + y1) / 2; }
+let queued = false;
+function draw() { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; paint(); }); } }
+function line(pts) { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(sx(p[0]), sy(p[1])) : ctx.moveTo(sx(p[0]), sy(p[1]))); }
+function paint() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W_, H_);
+  const x0 = wx(0), x1 = wx(W_), y1 = wy(0), y0 = wy(H_);
+  ctx.fillStyle = C.parks;
+  for (const r of D.parks) { ctx.beginPath(); for (let i = 0; i < r.length; i += 2) i ? ctx.lineTo(sx(r[i]), sy(r[i + 1])) : ctx.moveTo(sx(r[i]), sy(r[i + 1])); ctx.closePath(); ctx.fill(); }
+  ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = C.streets; ctx.lineWidth = Math.max(0.6, Math.min(2.4, view.k * 3)); ctx.beginPath();
+  for (let e = 0; e < E; e++) { const a = GOFF[e], b = GOFF[e + 1];
+    const ex0 = GXY[2 * a], ey0 = GXY[2 * a + 1], ex1 = GXY[2 * (b - 1)], ey1 = GXY[2 * (b - 1) + 1];
+    if (Math.max(ex0, ex1) < x0 - 300 || Math.min(ex0, ex1) > x1 + 300 || Math.max(ey0, ey1) < y0 - 300 || Math.min(ey0, ey1) > y1 + 300) continue;
+    ctx.moveTo(sx(ex0), sy(ey0)); for (let i = a + 1; i < b; i++) ctx.lineTo(sx(GXY[2 * i]), sy(GXY[2 * i + 1])); }
+  ctx.stroke();
+  if (!G && view.k < 0.25) { ctx.font = "500 13px Gabarito, sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = C["ink-2"];
+    for (const l of D.labels) ctx.fillText(l.name, sx(l.x), sy(l.y)); }
+  if (G) { ctx.lineWidth = 8; ctx.strokeStyle = C.card; line(G.pts); ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = C.blue; line(G.pts); ctx.stroke(); }
+  if (state.hover) { ctx.beginPath(); ctx.arc(sx(state.hover[0]), sy(state.hover[1]), 6.5, 0, 7); ctx.fillStyle = C.card; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); }
+  for (const [n, lab] of [[state.s, "A"], [state.t, "B"]]) { if (n == null) continue; const x = sx(NX[n]), y = sy(NY[n]);
+    ctx.beginPath(); ctx.arc(x, y, 11, 0, 7); ctx.fillStyle = C.ink; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.card; ctx.stroke();
+    ctx.fillStyle = C.page; ctx.font = "700 12px Gabarito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(lab, x, y + 0.5); ctx.textBaseline = "alphabetic"; }
+  paintNote();
+}
+
+/* the one note on the map: the steepest stretch of the walk */
+let mapNote = null;
+function findMapNote() {
+  mapNote = null; if (!G) return;
+  const st = steepest(G);
+  if (!st || Math.abs(st.grade) < 2) { const m = G.segs[Math.floor(G.segs.length / 2)]; mapNote = { a: m.d0, b: m.d1, lines: ["Almost flat", "all the way"] }; return; }
+  const nm = street(st.e), word = st.grade > 0 ? "Steepest climb" : "Steepest descent";
+  const where = EFLAG[st.e] & 2 ? (nm ? `${nm}, stairs` : "on stairs") : nm;
+  mapNote = { a: st.d0, b: st.d1, lines: [`${word}: ${fmt.int(Math.abs(st.grade))}%`].concat(where ? [where] : []) };
+}
+function paintNote() {
+  while (anno.firstChild) anno.firstChild.remove();
+  if (!mapNote || !G) return;
+  const m = pointAt(G, (mapNote.a + mapNote.b) / 2), p0 = pointAt(G, mapNote.a), p1 = pointAt(G, mapNote.b);
+  const P = [sx(m[0]), sy(m[1])];
+  if (P[0] < 0 || P[0] > W_ || P[1] < 0 || P[1] > H_) return;
+  // leave the route at a right angle, on the side away from the middle of the walk
+  let tx0 = sx(p1[0]) - sx(p0[0]), ty0 = sy(p1[1]) - sy(p0[1]); const tl = Math.hypot(tx0, ty0) || 1;
+  let dx = -ty0 / tl, dy = tx0 / tl;
+  const c = pointAt(G, G.len / 2), cx = sx(c[0]), cy = sy(c[1]);
+  if (dx * (P[0] - cx) + dy * (P[1] - cy) < 0) { dx = -dx; dy = -dy; }
+  if (Math.abs(dx) < 0.25) dx = dx < 0 ? -0.6 : 0.6;
+  const anchor = dx >= 0 ? "start" : "end", TW = 170, pad = 14 + (W_ < 500 ? 0 : 20);
+  let tx = P[0] + dx * 64 + (dx >= 0 ? 8 : -8), ty = P[1] + dy * 52;
+  tx = anchor === "start" ? Math.min(Math.max(tx, pad), W_ - TW - pad) : Math.max(Math.min(tx, W_ - pad), TW + pad);
+  ty = Math.min(Math.max(ty, 40), H_ - 40);
+  const fx = anchor === "start" ? tx - 6 : tx + 6, fy = ty - 4;
+  const back = Math.hypot(fx - P[0], fy - P[1]) || 1, to = [P[0] + (fx - P[0]) / back * 8, P[1] + (fy - P[1]) / back * 8];
+  JF.annotate(anno, { from: [fx, fy], to, at: [tx, ty], anchor, lines: mapNote.lines, bend: anchor === "start" ? 0.3 : -0.3 });
+}
+function resize() { const r = cv.getBoundingClientRect(); DPR = Math.min(2, window.devicePixelRatio || 1); const first = !W_; W_ = r.width; H_ = r.height;
+  cv.width = W_ * DPR; cv.height = H_ * DPR; if (first) fitBox(minX, minY, maxX, maxY, 20); draw(); }
+function fit(force) {
+  if (!G) { if (force) { fitBox(minX, minY, maxX, maxY, 20); draw(); } return; }
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of G.pts) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+  const pad = Math.min(90, W_ / 6); fitBox(x0, y0, x1, y1, pad); draw();
+}
+const ptrs = new Map(); let moved = false, pinch0 = null;
+cv.addEventListener("pointerdown", ev => { cv.setPointerCapture(ev.pointerId); ptrs.set(ev.pointerId, [ev.offsetX, ev.offsetY]); moved = false;
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: view.k }; } });
+cv.addEventListener("pointermove", ev => { if (!ptrs.has(ev.pointerId)) return; const [px, py] = ptrs.get(ev.pointerId); const dx = ev.offsetX - px, dy = ev.offsetY - py;
+  ptrs.set(ev.pointerId, [ev.offsetX, ev.offsetY]);
+  if (ptrs.size === 1) { if (Math.hypot(dx, dy) > 0) { moved = moved || Math.hypot(dx, dy) > 2; view.x += dx; view.y += dy; draw(); } }
+  else if (pinch0) { const [a, b] = [...ptrs.values()]; zoomAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch0.k * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch0.d / view.k); moved = true; } });
+const endPtr = ev => { const was = ptrs.size; ptrs.delete(ev.pointerId); if (ptrs.size < 2) pinch0 = null; if (ev.type === "pointerup" && was === 1 && !moved) clickAt(ev.offsetX, ev.offsetY); };
+cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
+cv.addEventListener("wheel", ev => { ev.preventDefault(); zoomAt(ev.offsetX, ev.offsetY, Math.exp(-ev.deltaY * 0.0015)); }, { passive: false });
+function zoomAt(px, py, f) { const k = Math.max(0.02, Math.min(8, view.k * f)); f = k / view.k; view.x = px - (px - view.x) * f; view.y = py - (py - view.y) * f; view.k = k; draw(); }
+$("zin").onclick = () => zoomAt(W_ / 2, H_ / 2, 1.5);
+$("zout").onclick = () => zoomAt(W_ / 2, H_ / 2, 1 / 1.5);
+$("zfit").onclick = () => fit(true);
+function clickAt(px, py) { const n = nearestNode(wx(px), wy(py)); if (n < 0) return;
+  if (state.s == null || state.t != null) { setEnd("s", n, labelFor(n)); state.t = null; state.tLab = ""; $("qB").value = ""; compute(); }
+  else { setEnd("t", n, labelFor(n)); compute(); } }
+
+/* ---------- search boxes ---------- */
+function setEnd(which, node, label) { state[which] = node; state[which + "Lab"] = label; $(which === "s" ? "qA" : "qB").value = label; }
+function combo(input, list, which) {
+  let items = [], active = -1;
+  const close = () => { list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1; };
+  const show = () => {
+    items = search(input.value);
+    list.innerHTML = items.length ? items.map((p, i) => `<li role="option" id="${list.id}-${i}" data-i="${i}" aria-selected="false">${esc(p.label)}<small>${p.kind === 2 ? barri(p.node) : KIND[p.kind]}</small></li>`).join("")
+      : (input.value.trim() ? `<li class="none" role="option" aria-disabled="true">No match. Try a street corner, like Aragó / Balmes</li>` : "");
+    list.hidden = !list.innerHTML; input.setAttribute("aria-expanded", String(!list.hidden)); active = -1;
+  };
+  const mark = i => { active = i; list.querySelectorAll("li[data-i]").forEach((li, j) => li.setAttribute("aria-selected", String(j === i)));
+    const li = list.querySelector(`[data-i="${i}"]`); if (li) { input.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); } };
+  const pick = i => { const p = items[i]; if (!p) return; setEnd(which, p.node, p.label); close(); compute();
+    if (which === "s" && state.t == null) $("qB").focus(); };
+  input.addEventListener("input", show);
+  input.addEventListener("focus", () => { if (input.value && state[which] != null) input.select(); });
+  input.addEventListener("keydown", ev => {
+    if (ev.key === "ArrowDown") { ev.preventDefault(); if (list.hidden) show(); mark(Math.min(items.length - 1, active + 1)); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); mark(Math.max(0, active - 1)); }
+    else if (ev.key === "Enter") { ev.preventDefault(); if (!list.hidden && items.length) pick(active >= 0 ? active : 0); }
+    else if (ev.key === "Escape") { close(); input.value = state[which + "Lab"]; }
+  });
+  input.addEventListener("blur", () => setTimeout(() => { close(); if (!input.value.trim() && state[which] == null) return; if (input.value !== state[which + "Lab"]) input.value = state[which + "Lab"]; }, 150));
+  list.addEventListener("pointerdown", ev => { const li = ev.target.closest("li[data-i]"); if (li) { ev.preventDefault(); pick(+li.dataset.i); } });
+}
+combo($("qA"), $("lA"), "s"); combo($("qB"), $("lB"), "t");
+$("swap").onclick = () => { [state.s, state.t] = [state.t, state.s]; [state.sLab, state.tLab] = [state.tLab, state.sLab];
+  $("qA").value = state.sLab; $("qB").value = state.tLab; compute(); };
+
+const TRIES = [["Plaça del Sol", "Barceloneta beach"], ["Sants Estació", "Sagrada Família"], ["Plaça de Catalunya", "Park Güell"]];
+const byLabel = l => PLACES.find(p => p.label === l);
+$("tries").innerHTML = "Try " + TRIES.map((t, i) => `<button type="button" data-i="${i}">${t[0]} to ${t[1]}</button>`).join(", ").replace(/, (?=[^,]*$)/, " or ");
+$("tries").onclick = ev => { const b = ev.target.closest("button"); if (!b) return; const [a, z] = TRIES[+b.dataset.i].map(byLabel);
+  setEnd("s", a.node, a.label); setEnd("t", z.node, z.label); compute(); };
+
+/* ---------- ribbons ---------- */
+const NS = "http://www.w3.org/2000/svg", svg = $("rib");
+const el = (n, a, txt) => { const x = document.createElementNS(NS, n); for (const k in a) x.setAttribute(k, a[k]); if (txt != null) x.textContent = txt; return x; };
+const tip = JF.tooltip();
+let RB = null;  // ribbon geometry for hover
+function share(g, ki, f = good) { let L = 0; for (const s of g.segs) if (f(s.e, ki)) L += s.d1 - s.d0; return g.len ? L / g.len : 0; }
+/* the walk's strongest condition, and its weakest one */
+function standout(g) { let best = null; for (const k of RANKED) { const v = share(g, IND.indexOf(k)); if (!best || v > best.v) best = { k, v }; } return best; }
+function weakSpot(g, not) { let w = null; for (const k of RANKED) { if (k === not) continue; const v = share(g, IND.indexOf(k), bad); if (!w || v > w.v) w = { k, v }; } return w; }
+function longestRun(g, ki, want) {
+  let best = null, cur = null;
+  const close = () => { if (cur && (!best || cur.d1 - cur.d0 > best.d1 - best.d0)) best = cur; cur = null; };
+  for (const s of g.segs) { if (good(s.e, ki) === want) { if (!cur) cur = { d0: s.d0, d1: s.d1, segs: [] }; cur.d1 = s.d1; cur.segs.push(s); } else close(); }
+  close();
+  if (!best) return null;
+  const byName = {}; for (const s of best.segs) { const n = street(s.e); if (n) byName[n] = (byName[n] || 0) + s.d1 - s.d0; }
+  const name = Object.keys(byName).sort((a, b) => byName[b] - byName[a])[0];
+  return { ...best, name: name || barri(EU[best.segs[0].e]) };
+}
+function renderRibbons() {
+  while (svg.firstChild) svg.firstChild.remove(); RB = null;
+  const width = Math.max(300, svg.parentElement.clientWidth), narrow = width < 560;
+  if (!G) { svg.setAttribute("viewBox", `0 0 ${width} 40`); svg.setAttribute("height", 40);
+    svg.append(el("text", { x: 0, y: 24 }, noWay ? "There is no walking route between these two points." : "Pick a trip above, or click two points on the map.")); return; }
+  const g = G, so = standout(g);
+  const rows = [so.k, ...IND.filter(x => x !== so.k)].filter(x => x !== "slope");
+  const LBL = narrow ? 84 : 140, RM = 6, ANN = 46, ROW = narrow ? 30 : 34, PROF = 70, GAP = 14;
+  // the standout condition goes first, so the note above the chart lands on it; slope is the profile
+  const slopeFirst = so.k === "slope";
+  const profTop = slopeFirst ? ANN : ANN + rows.length * ROW + GAP, axisY = profTop + PROF + 17;
+  const rowsTop = slopeFirst ? axisY + 18 : ANN, bottom = Math.max(rowsTop + rows.length * ROW, profTop + PROF);
+  const H = Math.max(bottom, axisY) + 8;
+  svg.setAttribute("viewBox", `0 0 ${width} ${H}`); svg.setAttribute("height", H);
+  const X = d => LBL + (width - LBL - RM) * d / g.len;
+  const yRow = i => rowsTop + i * ROW + ROW / 2, hwMax = ROW / 2 - 3;
+  const rowY = {};
+  rows.forEach((ind, i) => {
+    const y = yRow(i), ki = IND.indexOf(ind), col = C["i-" + ind]; rowY[ind] = y;
+    svg.append(el("text", { x: 0, y: y + 4.5, class: ind === so.k ? "hi" : "" }, narrow ? SHORT[ind] : LABEL[ind]));
+    // width follows the street's rank in the city: a typical street fills half the band, the best the whole band.
+    // Park and pedestrian are mostly zero across the city, so they follow the raw share instead.
+    const [lo, hiv] = D.raw_range[ind], raw = ind === "park" || ind === "pedestrian";
+    const presence = e => { if (raw) return Math.max(0, Math.min(1, (ERAW[e * K + ki] - lo) / (hiv - lo || 1)));
+      const q = EX[e * K + ki]; return q === -128 ? 0 : (q / 127 + 1) / 2; };
+    const hw = v => 0.6 + v * (hwMax - 0.6);
+    let top = "", bot = "";
+    for (const s of g.segs) { const h = hw(presence(s.e)), xa = X(s.d0).toFixed(1), xb = X(s.d1).toFixed(1);
+      top += `${top ? "L" : "M"}${xa},${(y - h).toFixed(1)}L${xb},${(y - h).toFixed(1)}`; bot = `L${xb},${(y + h).toFixed(1)}L${xa},${(y + h).toFixed(1)}` + bot; }
+    svg.append(el("path", { d: top + bot + "Z", fill: col, "fill-opacity": 0.75, stroke: col, "stroke-width": 0.8, "stroke-linejoin": "round" }));
+  });
+  // slope as an elevation profile
+  const y0 = profTop;
+  const zmin = Math.min(...g.zs.map(z => z[1])), zmax = Math.max(...g.zs.map(z => z[1]));
+  const zlo = Math.floor(zmin / 10) * 10, zhi = Math.max(zlo + 30, Math.ceil(zmax / 10) * 10);
+  const Y = z => y0 + PROF - (z - zlo) / (zhi - zlo) * (PROF - 6);
+  svg.append(el("text", { x: 0, y: y0 + 14, class: slopeFirst ? "hi" : "" }, narrow ? "Height" : "Height and slope"));
+  svg.append(el("text", { x: 0, y: y0 + 31, class: "tick" }, `${fmt.int(zmin)} to ${fmt.int(zmax)} m`));
+  let d = ""; g.zs.forEach(([dd, z], i) => d += `${i ? "L" : "M"}${X(dd).toFixed(1)},${Y(z).toFixed(1)}`);
+  svg.append(el("path", { d: d + `L${X(g.len)},${y0 + PROF}L${X(0)},${y0 + PROF}Z`, fill: C["context-light"], stroke: "none" }));
+  svg.append(el("path", { d, fill: "none", stroke: C["i-slope"], "stroke-width": 2, "stroke-linejoin": "round" }));
+  svg.append(el("line", { x1: X(0), x2: X(g.len), y1: y0 + PROF, y2: y0 + PROF, class: "jf-base", stroke: C.ink }));
+  const yb = axisY, step = g.len > 8000 ? 2000 : g.len > 3000 ? 1000 : 500;
+  svg.append(el("text", { x: X(0), y: yb, class: "tick", "text-anchor": "start" }, "0 km"));
+  for (let dd = step; dd < g.len; dd += step) { if (X(g.len) - X(dd) < 60 || X(dd) - X(0) < 40) continue; svg.append(el("text", { x: X(dd), y: yb, class: "tick", "text-anchor": "middle" }, fmt.num(dd / 1000, step < 1000 ? 1 : 0))); }
+  svg.append(el("text", { x: X(g.len), y: yb, class: "tick", "text-anchor": "end" }, `${fmt.num(g.len / 1000, 2)} km`));
+  // the one note: the longest stretch behind the headline, good or bad
+  const run = longestRun(g, IND.indexOf(so.k), true);
+  if (run) {
+    const mx = X((run.d0 + run.d1) / 2), ty = 15, right = mx > LBL + (width - LBL) * 0.55;
+    const lead = "Longest good stretch:";
+    const lines = narrow || run.name.length > 18 ? [lead, run.name] : [`${lead} ${run.name}`];
+    const tx = right ? Math.max(mx - 26, 170) : Math.min(mx + 26, width - 170);
+    const toY = slopeFirst ? Y(zAt(g, (run.d0 + run.d1) / 2)) - 4 : rowY[so.k] - hwMax - 3;
+    JF.annotate(svg, { from: [right ? tx + 5 : tx - 5, ty - 4], to: [mx, toY], at: [tx, ty], anchor: right ? "end" : "start", lines, bend: right ? -0.35 : 0.35 });
+  }
+  // hover
+  const hair = el("line", { y1: ANN - 4, y2: bottom, stroke: C.ink, "stroke-width": 1, visibility: "hidden" }); svg.append(hair);
+  const hot = el("rect", { x: LBL, y: ANN - 4, width: width - LBL - RM, height: bottom - ANN + 4, fill: "transparent" }); svg.append(hot);
+  RB = { g, LBL, RM, width, hair };
+  hot.addEventListener("pointermove", onMove); hot.addEventListener("pointerleave", onLeave);
+}
+function onMove(ev) {
+  if (!RB) return;
+  const { g, LBL, RM, width, hair } = RB, rb = svg.getBoundingClientRect(), px = (ev.clientX - rb.left) * width / rb.width;
+  const d = Math.max(0, Math.min(g.len, (px - LBL) / (width - LBL - RM) * g.len));
+  hair.setAttribute("x1", px); hair.setAttribute("x2", px); hair.setAttribute("visibility", "visible");
+  const s = g.segs.find(q => d >= q.d0 && d <= q.d1) || g.segs[g.segs.length - 1], e = s.e;
+  const nm = street(e) || `A path in ${barri(EU[e])}`, extra = EFLAG[e] & 2 ? ", stairs" : EFLAG[e] & 1 ? ", plaza" : "";
+  const lines = IND.map((k, i) => VALUE[k](ERAW[e * K + i]));
+  tip.show(ev, `<b>${esc(nm)}</b>${extra}<br>${fmt.num(d / 1000, 2)} km in, ${fmt.int(zAt(g, d))} m high<br>${lines.join("<br>")}`);
+  state.hover = pointAt(g, d); draw();
+}
+function onLeave() { if (RB) RB.hair.setAttribute("visibility", "hidden"); tip.hide(); state.hover = null; draw(); }
+
+/* ---------- headlines ---------- */
+const km = m => `${fmt.num(m / 1000, 2)}\u00a0km`;
+function duration(m) { const min = Math.max(1, Math.round(m / 80)); return min < 60 ? `${min}-minute` : `${Math.floor(min / 60)} h ${min % 60} min`; }
+function render() {
+  const A = state.sLab, B = state.tLab;
+  if (!G) {
+    $("mapHead").textContent = noWay ? "There is no walking route between these two points" : "Pick two places to see the walk between them";
+    $("mapDek").textContent = state.s != null && state.t == null ? `Starting at ${A}. Now pick where you are going, or click the map.` : "The shortest way on the city's street network. Click the map to set the start, then the end.";
+    $("ribHead").textContent = "What the streets are like along the way";
+    $("ribDek").textContent = "Street conditions along the walk. A typical Barcelona street fills half of each band, wider is better.";
+  } else {
+    const climb = climbOf(G), drop = climb + zAt(G, 0) - zAt(G, G.len), stairs = stairsOf(G), t = duration(G.len);
+    const lead = /h/.test(t) ? `A walk of ${t}` : `A ${t} walk`;
+    $("mapHead").textContent = climb >= 10 ? `${lead}: ${km(G.len)} with ${fmt.int(climb)} m of climbing`
+      : drop >= 10 ? `${lead}: ${km(G.len)}, downhill most of the way` : `${lead}: ${km(G.len)}, almost flat`;
+    const low = x => x.replace(/^A point/, "a point");
+    $("mapDek").textContent = `From ${low(A)} to ${low(B)}, along the shortest way on the city's street network.` + (stairs >= 10 ? ` It includes about ${fmt.int(stairs)} m of stairs.` : "");
+    const so = standout(G), pct = Math.round(so.v * 100), w = weakSpot(G, so.k);
+    $("ribHead").textContent = so.v >= 0.5 ? `${pct}% of the way ${BETTER[so.k]}` : `Only ${pct}% of the way ${BETTER[so.k]}`;
+    $("ribDek").textContent = "Street conditions along the walk. A typical Barcelona street fills half of each band, wider is better."
+      + (w && w.v >= 0.3 ? ` Weak spot: ${WORSE[w.k]} on ${Math.round(w.v * 100)}% of the way.` : "");
+  }
+  findMapNote(); renderRibbons(); draw();
+}
+
+/* ---------- shareable trip in the address ---------- */
+function writeHash() { if (state.s == null || state.t == null) return;
+  try { history.replaceState(null, "", `#${state.s}-${state.t}`); } catch (e) { /* sandboxed */ } }
+function readHash() { const m = /^#(\d+)-(\d+)(?:-\w+)?$/.exec(location.hash || ""); if (!m) return false;
+  const s = +m[1], t = +m[2]; if (s >= N || t >= N) return false;
+  setEnd("s", s, labelFor(s)); setEnd("t", t, labelFor(t)); return true; }
+
+/* ---------- boot ---------- */
+readColors(); resize();
+new ResizeObserver(() => resize()).observe(cv);
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderRibbons, 120); });
+if (document.fonts) document.fonts.ready.then(() => { renderRibbons(); draw(); });
+if (!readHash()) { const [a, z] = TRIES[0].map(byLabel); setEnd("s", a.node, a.label); setEnd("t", z.node, z.label); }
+render(); compute();
+})();
+</script>

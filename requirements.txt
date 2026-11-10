@@ -1,0 +1,9 @@
+requests
+numpy
+pandas
+geopandas
+pyarrow
+shapely>=2
+scipy
+networkx
+pyproj
